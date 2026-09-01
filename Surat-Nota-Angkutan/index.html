@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nota Angkutan - Hasil Hutan Kayu Budidaya</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <div class="app">
+
+    <!-- ============ HEADER APLIKASI ============ -->
+    <header class="app-header">
+      <div class="app-header__brand">
+        <span class="app-header__icon">🌲</span>
+        <div class="app-header__text">
+          <h1>Nota Angkutan</h1>
+          <p>Hasil Hutan Kayu Budidaya yang Berasal dari Hutan Hak</p>
+        </div>
+      </div>
+      <a href="../index.html" class="btn-back-home">
+        &#8592; Home
+      </a>
+    </header>
+
+    <div class="app-body">
+
+      <!-- ============ PANEL FORM (KIRI) ============ -->
+      <section class="panel form-panel" aria-label="Form Input">
+        <form id="notaForm" novalidate>
+
+          <!-- HEADER / NOMOR -->
+          <fieldset class="group">
+            <legend>Nomor Nota</legend>
+            <div class="field">
+              <label for="nomor">Nomor <span class="req">*</span></label>
+              <input type="text" id="nomor" name="nomor" placeholder="Contoh: 001/NA/VIII/2026" required>
+            </div>
+          </fieldset>
+
+          <!-- ASAL KAYU -->
+          <fieldset class="group">
+            <legend>Asal Kayu</legend>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="desa">Desa <span class="req">*</span></label>
+                <input type="text" id="desa" name="desa" required>
+              </div>
+              <div class="field">
+                <label for="kecamatan">Kecamatan <span class="req">*</span></label>
+                <input type="text" id="kecamatan" name="kecamatan" required>
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="kabupaten">Kabupaten/Kota <span class="req">*</span></label>
+                <input type="text" id="kabupaten" name="kabupaten" required>
+              </div>
+              <div class="field">
+                <label for="provinsi">Provinsi <span class="req">*</span></label>
+                <input type="text" id="provinsi" name="provinsi" required>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="buktiKepemilikan">Bukti Kepemilikan*) <span class="req">*</span></label>
+              <input type="text" id="buktiKepemilikan" name="buktiKepemilikan" placeholder="Contoh: SHM / SKT / Girik">
+              <small class="hint">*) Diisi Bukti Pemilikan/Pengusahaan yang diakui BPN</small>
+            </div>
+
+            <div class="field">
+              <label for="noBuktiKepemilikan">No. Bukti Kepemilikan <span class="req">*</span></label>
+              <input type="text" id="noBuktiKepemilikan" name="noBuktiKepemilikan">
+            </div>
+
+            <div class="field">
+              <label for="pengirim">Pengirim <span class="req">*</span></label>
+              <input type="text" id="pengirim" name="pengirim" required>
+            </div>
+
+            <div class="field">
+              <label for="alamatPengirim1">Alamat Pengirim (baris 1) <span class="req">*</span></label>
+              <input type="text" id="alamatPengirim1" name="alamatPengirim1">
+            </div>
+            <div class="field">
+              <label for="alamatPengirim2">Alamat Pengirim (baris 2)</label>
+              <input type="text" id="alamatPengirim2" name="alamatPengirim2">
+            </div>
+
+            <div class="field">
+              <label for="tempatMuat">Tempat Muat <span class="req">*</span></label>
+              <input type="text" id="tempatMuat" name="tempatMuat">
+            </div>
+
+            <div class="field">
+              <label for="jenisIdentitas">Jenis dan Identitas <span class="req">*</span></label>
+              <input type="text" id="jenisIdentitas" name="jenisIdentitas">
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="alatAngkut">Alat Angkut <span class="req">*</span></label>
+                <input type="text" id="alatAngkut" name="alatAngkut">
+              </div>
+              <div class="field">
+                <label for="noPol">NO. POL <span class="req">*</span></label>
+                <input type="text" id="noPol" name="noPol">
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- TUJUAN PENGANGKUTAN -->
+          <fieldset class="group">
+            <legend>Tujuan Pengangkutan</legend>
+
+            <div class="field">
+              <label for="namaPenerima">Nama Penerima <span class="req">*</span></label>
+              <input type="text" id="namaPenerima" name="namaPenerima" required>
+            </div>
+
+            <div class="field">
+              <label for="alamatPenerima1">Alamat Penerima (baris 1) <span class="req">*</span></label>
+              <input type="text" id="alamatPenerima1" name="alamatPenerima1">
+            </div>
+            <div class="field">
+              <label for="alamatPenerima2">Alamat Penerima (baris 2)</label>
+              <input type="text" id="alamatPenerima2" name="alamatPenerima2">
+            </div>
+          </fieldset>
+
+          <!-- MASA BERLAKU -->
+          <fieldset class="group">
+            <legend>Masa Berlaku</legend>
+
+            <div class="field">
+              <label for="selama">Selama <span class="req">*</span></label>
+              <input type="text" id="selama" name="selama" placeholder="Contoh: 3 (tiga) hari">
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label for="dariTanggal">Dari Tanggal <span class="req">*</span></label>
+                <input type="date" id="dariTanggal" name="dariTanggal">
+              </div>
+              <div class="field">
+                <label for="sampaiTanggal">Sampai Tanggal <span class="req">*</span></label>
+                <input type="date" id="sampaiTanggal" name="sampaiTanggal">
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- TABEL ISI -->
+          <fieldset class="group">
+            <legend>Rincian Hasil Hutan</legend>
+
+            <div class="table-editor" id="tableEditor">
+              <div id="rowsContainer" class="rows-container"></div>
+            </div>
+
+            <div class="table-actions">
+              <button type="button" id="addRowBtn" class="btn btn--ghost">+ Tambah Baris</button>
+            </div>
+          </fieldset>
+
+          <!-- CATATAN -->
+          <fieldset class="group">
+            <legend>Catatan</legend>
+            <div class="field">
+              <label for="catatan">Catatan</label>
+              <textarea id="catatan" name="catatan" rows="3"></textarea>
+            </div>
+          </fieldset>
+
+          <!-- TANDA TANGAN -->
+          <fieldset class="group">
+            <legend>Tanda Tangan</legend>
+
+            <div class="field">
+              <label>Tanda Tangan</label>
+              <div style="border: 1px dashed #ccc; border-radius: 8px; overflow: hidden; margin-bottom: 8px; background: #fff;">
+                <canvas id="signaturePad" style="width: 100%; height: 200px; cursor: crosshair; touch-action: none; display: block;"></canvas>
+              </div>
+              <button type="button" id="clearSignatureBtn" class="btn btn--secondary" style="padding: 8px 16px; font-size: 14px; width: max-content;">Hapus Tanda Tangan</button>
+            </div>
+
+            <div class="field-row" style="margin-top: 16px;">
+              <div class="field">
+                <label for="kotaTtd">Kota (untuk tanda tangan) <span class="req">*</span></label>
+                <input type="text" id="kotaTtd" name="kotaTtd" placeholder="Contoh: Depok">
+              </div>
+              <div class="field">
+                <label for="tanggalTtd">Tanggal Tanda Tangan <span class="req">*</span></label>
+                <input type="date" id="tanggalTtd" name="tanggalTtd">
+              </div>
+            </div>
+            <div class="field">
+              <label for="namaPemilik">Nama Pemilik Hutan Hak <span class="req">*</span></label>
+              <input type="text" id="namaPemilik" name="namaPemilik" required>
+              <small class="hint" style="margin-top: 8px; display: block; color: var(--ink-soft, #666);">Kosongkan tanggal untuk otomatis menggunakan tanggal saat dokumen diunduh.</small>
+            </div>
+          </fieldset>
+
+          <!-- ============ PANEL PREVIEW (SEKARANG DI MODAL) ============ -->
+          <div class="form-actions">
+            <button type="button" id="downloadBlankBtn" class="btn btn--ghost"
+              style="margin-right: auto; border-style: dashed;">Download File Mentah (Kosong)</button>
+            <button type="reset" id="resetBtn" class="btn btn--secondary">Reset Form</button>
+            <button type="button" id="previewBtn" class="btn btn--primary">Lihat & Download PDF</button>
+          </div>
+          <p id="formError" class="form-error" role="alert" aria-live="polite"></p>
+        </form>
+      </section>
+
+      <!-- ============ CONFIRM DOWNLOAD MODAL ============ -->
+      <div id="confirmModal" class="confirm-modal" aria-hidden="true">
+        <div class="confirm-modal__backdrop"></div>
+        <div class="confirm-modal__box">
+          <div class="confirm-modal__icon">📄</div>
+          <h3 class="confirm-modal__title" id="confirmModalTitle">Konfirmasi Download</h3>
+          <p class="confirm-modal__desc" id="confirmModalDesc">Apakah Anda yakin ingin mengunduh file ini?</p>
+          
+          <div id="blankRowConfig" style="display: none; margin: 16px 0; text-align: left;">
+            <label for="blankRowCount" style="display: block; font-size: 13px; font-weight: 600; color: var(--ink-soft); margin-bottom: 6px;">Jumlah Baris Tabel Kosong</label>
+            <input type="number" id="blankRowCount" value="1" min="1" max="20" style="width: 100%; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; font-size: 14px; background: #fdfcf9;">
+          </div>
+
+          <div class="confirm-modal__actions">
+            <button type="button" id="confirmModalCancel" class="btn btn--secondary">Batal</button>
+            <button type="button" id="confirmModalOk" class="btn btn--primary">Ya, Download</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ LOADING OVERLAY ============ -->
+      <div id="loadingOverlay" class="loading-overlay" aria-hidden="true">
+        <div class="loading-overlay__box">
+          <div class="loading-overlay__spinner"></div>
+          <p class="loading-overlay__label" id="loadingLabel">Memproses...</p>
+          <div class="loading-overlay__track">
+            <div class="loading-overlay__bar" id="loadingBar"></div>
+          </div>
+          <p class="loading-overlay__sub" id="loadingSub">Menyiapkan dokumen</p>
+        </div>
+      </div>
+
+      <!-- ============ MODAL ============ -->
+      <div id="previewModal" class="modal" aria-hidden="true">
+        <div class="modal-backdrop" id="modalBackdrop"></div>
+        <div class="modal-container">
+          <div class="modal-header">
+            <h2>Pratinjau Dokumen</h2>
+            <button type="button" id="closeModalBtn" class="btn-icon" aria-label="Tutup">&times;</button>
+          </div>
+          <div class="modal-body" style="position: relative;">
+            <div class="zoom-controls">
+              <button type="button" id="zoomOutBtn" class="btn-icon" aria-label="Zoom Out" title="Perkecil">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+              </button>
+              <span id="zoomLevel">100%</span>
+              <button type="button" id="zoomInBtn" class="btn-icon" aria-label="Zoom In" title="Perbesar">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                  stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+              </button>
+            </div>
+            <div class="preview-scroll" id="modalPreviewScroll">
+              <div id="pagesContainer" class="pages-container"></div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" id="cancelDownloadBtn" class="btn btn--secondary">Kembali Edit</button>
+            <button type="button" id="confirmDownloadBtn" class="btn btn--primary">Lanjut Download PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====== DOKUMEN TEMPLATE ====== -->
+      <template id="pageTemplate">
+        <div class="doc-sheet">
+          <div class="doc-title">NOTA ANGKUTAN</div>
+          <div class="doc-subtitle">HASIL HUTAN KAYU BUDIDAYA YANG BERASAL DARI HUTAN HAK</div>
+          <div class="doc-subtitle2">(Berlaku Sebagai DKP)</div>
+
+          <div class="doc-center-line">
+            <span class="doc-label">Nomor</span><span class="doc-colon">:</span>
+            <span class="doc-value out-nomor" style="min-width: 200px; border-bottom: none;"></span>
+          </div>
+
+          <div class="doc-top-info">
+            <div class="doc-row">
+              <div class="doc-half">
+                <div class="doc-line">
+                  <span class="doc-label">Desa</span><span class="doc-colon">:</span>
+                  <span class="doc-value out-desa"></span>
+                </div>
+                <div class="doc-line">
+                  <span class="doc-label">Kecamatan</span><span class="doc-colon">:</span>
+                  <span class="doc-value out-kecamatan"></span>
+                </div>
+              </div>
+              <div class="doc-half">
+                <div class="doc-line">
+                  <span class="doc-label" style="width: 120px;">Kabupaten/Kota</span><span class="doc-colon">:</span>
+                  <span class="doc-value out-kabupaten"></span>
+                </div>
+                <div class="doc-line">
+                  <span class="doc-label" style="width: 120px;">Provinsi</span><span class="doc-colon">:</span>
+                  <span class="doc-value out-provinsi"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="doc-row">
+              <!-- LEFT COLUMN -->
+              <div class="doc-col">
+                <div class="doc-section-title">ASAL KAYU</div>
+
+                <div class="doc-line">
+                  <span class="doc-label">Bukti Kepemilikan*)</span><span class="doc-colon">:</span>
+                  <span class="doc-value out-buktiKepemilikan"></span>
+                </div>
+                <div class="doc-line">
+                  <span class="doc-label">No.Bukti Kepemilikan</span><span class="doc-colon">:</span>
+                  <span class="doc-value out-noBuktiKepemilikan"></span>
+                </div>
+                <div class="doc-line">
+                  <span class="doc-label">Pengirim</span><span class="doc-colon">:</span>
+                  <span class="doc-value out-pengirim"></span>
+                </div>
+                <div class="doc-line">
+                  <span class="doc-label">Alamat Pengirim</span><span class="doc-colon">:</span>
+                  <span class="doc-value out-alamatPengirim1"></span>
+                </div>
+                <div class="doc-line">
+                  <span class="doc-label"></span><span class="doc-colon">:</span>
+                  <span class="doc-value out-alamatPengirim2"></span>
+                </div>
+                <div class="doc-line">
+                  <span class="doc-label">Tempat Muat</span><span class="doc-colon">:</span>
+                  <span class="doc-value out-tempatMuat"></span>
+                </div>
+                <div class="doc-line">
+                  <span class="doc-label">Jenis dan Identitas</span><span class="doc-colon">:</span>
+                  <span class="doc-value out-jenisIdentitas"></span>
+                </div>
+                <div class="doc-line doc-line-alat">
+                  <span class="doc-label">Alat Angkut</span><span class="doc-colon">:</span>
+                  <span class="doc-value doc-value-alat out-alatAngkut"></span>
+                  <span class="doc-label-nopol">NO.POL</span><span class="doc-colon-nopol">:</span>
+                  <span class="doc-value doc-value-nopol out-noPol"></span>
+                </div>
+              </div>
+
+              <!-- RIGHT COLUMN -->
+              <div class="doc-col">
+                <div class="doc-section-title">TUJUAN PENGANGKUTAN</div>
+
+                <div class="doc-line">
+                  <span class="doc-label">Nama Penerima</span><span class="doc-colon">:</span>
+                  <span class="doc-value out-namaPenerima"></span>
+                </div>
+                <div class="doc-line">
+                  <span class="doc-label">Alamat Penerima</span><span class="doc-colon">:</span>
+                  <span class="doc-value out-alamatPenerima1"></span>
+                </div>
+                <div class="doc-line">
+                  <span class="doc-label"></span><span class="doc-colon">:</span>
+                  <span class="doc-value out-alamatPenerima2"></span>
+                </div>
+
+                <div class="doc-section-title doc-section-title-mt">MASA BERLAKU</div>
+
+                <div class="doc-line">
+                  <span class="doc-label">Selama</span><span class="doc-colon">:</span>
+                  <span class="doc-value out-selama"></span>
+                </div>
+                <div class="doc-line">
+                  <span class="doc-label">Dari Tanggal</span><span class="doc-colon">:</span>
+                  <span class="doc-value out-dariTanggal"></span>
+                </div>
+                <div class="doc-line">
+                  <span class="doc-label">Sampai Tanggal</span><span class="doc-colon">:</span>
+                  <span class="doc-value out-sampaiTanggal"></span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <table class="doc-table">
+            <thead>
+              <tr>
+                <th class="col-nomor">Nomor</th>
+                <th class="col-jenis">Jenis Hasil Hutan</th>
+                <th class="col-jumlah">Jumlah<br>(Batang/Kapling/Ikat)</th>
+                <th class="col-volume">Volume<br>(SM)</th>
+                <th class="col-ket">Keterangan</th>
+              </tr>
+            </thead>
+            <tbody class="out-tbody">
+              <!-- rows injected by JS -->
+            </tbody>
+            <tfoot class="out-tfoot">
+              <tr>
+                <td class="col-nomor"></td>
+                <td class="col-jenis doc-jumlah-label">JUMLAH</td>
+                <td class="col-jumlah out-totalJumlah"></td>
+                <td class="col-volume out-totalVolume"></td>
+                <td class="col-ket"></td>
+              </tr>
+            </tfoot>
+          </table>
+
+          <div class="doc-bottom-info">
+            <div class="doc-catatan">
+              Catatan :
+              <div class="out-catatan"
+                style="margin-top: 2px; margin-bottom: 4px; white-space: pre-wrap; display: none;"></div>
+              <div class="doc-footnote">*) Diisi Bukti Pemilikan/Pengusahaan yang diakui BPN</div>
+            </div>
+
+            <div class="doc-signature">
+              <div class="doc-signature__inner">
+                <div class="doc-signature__date out-tglTtd">&nbsp;</div>
+                <div class="doc-signature__role">Pemilik Hutan Hak</div>
+                <div class="doc-signature__space" style="height: 80px; display: flex; align-items: center; justify-content: center; margin: 4px 0;">
+                  <img class="out-signature" style="max-height: 100%; max-width: 100%; object-fit: contain; display: none;" src="" alt="" />
+                </div>
+                <div class="doc-signature__name out-namaPemilik"></div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </template>
+      <!-- ====== END DOKUMEN ====== -->
+
+    </div>
+  </div>
+
+  <!-- Libraries untuk generate PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="script.js"></script>
+</body>
+
+</html>

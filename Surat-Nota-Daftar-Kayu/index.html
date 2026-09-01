@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Form DKB/DKO - Daftar Kayu Bulat / Kayu Olahan</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+
+<body>
+
+  <!-- TOP BAR -->
+  <div class="app-topbar">
+    <div class="app-topbar-inner">
+      <div class="app-topbar-icon">🌲</div>
+      <div class="app-topbar-text">
+        <h1>Form DKB/DKO</h1>
+        <p>Daftar Kayu Bulat / Kayu Olahan</p>
+      </div>
+    </div>
+    <a href="../index.html" class="btn-back-home">
+      &#8592; Home
+    </a>
+  </div>
+
+  <div class="app-body">
+    <section class="panel form-panel">
+      <form id="dkbForm">
+
+        <!-- ============ DATA UMUM ============ -->
+        <fieldset class="group">
+          <legend>Data Umum</legend>
+          <div class="field-row">
+            <div class="field">
+              <label for="nomor">Nomor Nota <span class="req">*</span></label>
+              <input type="text" id="nomor">
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="kabkota">Kabupaten/Kota <span class="req">*</span></label>
+              <input type="text" id="kabkota">
+            </div>
+            <div class="field">
+              <label for="provinsi">Provinsi <span class="req">*</span></label>
+              <input type="text" id="provinsi">
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="satuanSub">Satuan Sub-Total per Jenis</label>
+              <select id="satuanSub">
+                <option value="Pcs" selected>Pcs (Pieces)</option>
+                <option value="Unit">Unit (Unit)</option>
+                <option value="Set">Set (Set)</option>
+                <option value="Box">Box (Box)</option>
+                <option value="Pack">Pack (Pack)</option>
+                <option value="Dus">Dus (Dus)</option>
+                <option value="Kg">Kg (Kilogram)</option>
+                <option value="Gram">Gr (Gram)</option>
+                <option value="Liter">Ltr (Liter)</option>
+                <option value="Meter">Mtr (Meter)</option>
+                <option value="Cm">Cm (Centimeter)</option>
+                <option value="Roll">Roll (Roll)</option>
+                <option value="Lusin">Lsn (Lusin)</option>
+                <option value="Kodi">Kdi (Kodi)</option>
+                <option value="Pax">Pax (Pax)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="satuanGrand">Satuan Total Keseluruhan</label>
+              <select id="satuanGrand">
+                <option value="Btg" selected>Btg (Batang)</option>
+                <option value="KPL">Kpl (Kapling)</option>
+                <option value="IKT">Ikt (Ikat)</option>
+              </select>
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- ============ TABEL KAYU ============ -->
+        <fieldset class="group">
+          <legend>Daftar Jenis Kayu</legend>
+          <div id="groupsContainer"></div>
+          <button type="button" id="addGroupBtn" class="btn btn--ghost">+ Tambah Jenis Kayu</button>
+
+          <div class="totals-preview">
+            <span class="totals-preview-item">Total Jumlah: <strong id="totalJumlahPreview">0</strong></span>
+            <span class="totals-preview-item">Total Volume: <strong id="totalVolumePreview">0</strong> m³</span>
+          </div>
+        </fieldset>
+
+        <!-- ============ FOOTER INFO ============ -->
+        <fieldset class="group">
+          <legend>Informasi Pengangkutan</legend>
+          <div class="field-row">
+            <div class="field">
+              <label for="tglMulai">Dari Tanggal <span class="req">*</span></label>
+              <input type="date" id="tglMulai">
+            </div>
+            <div class="field">
+              <label for="tglAkhir">Sampai Tanggal <span class="req">*</span></label>
+              <input type="date" id="tglAkhir">
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="jenisAngkut">Jenis Alat Angkut <span class="req">*</span></label>
+              <input type="text" id="jenisAngkut" placeholder="Contoh: Pick Up">
+            </div>
+            <div class="field">
+              <label for="noPolisi">No. Polisi <span class="req">*</span></label>
+              <input type="text" id="noPolisi" placeholder="Contoh: F 8017 HN">
+            </div>
+          </div>
+        </fieldset>
+
+        <!-- ============ TANDA TANGAN ============ -->
+        <fieldset class="group">
+          <legend>Tanda Tangan</legend>
+          <div class="field">
+            <label>Tanda Tangan</label>
+            <div class="signature-wrap"
+              style="border:1px dashed #b0b0b0; border-radius:7px; overflow:hidden; background:#fff; margin-bottom:10px;">
+              <canvas id="signaturePad" width="500" height="180"
+                style="width:100%; display:block; cursor:crosshair; touch-action:none;"></canvas>
+            </div>
+            <button type="button" id="clearSignBtn" class="btn btn--secondary">Hapus Tanda Tangan</button>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="kotaTtd">Kota (untuk tanda tangan) <span class="req">*</span></label>
+              <input type="text" id="kotaTtd" placeholder="Contoh: Depok">
+            </div>
+            <div class="field">
+              <label for="tanggalTtd">Tanggal Tanda Tangan <span class="req">*</span></label>
+              <input type="date" id="tanggalTtd">
+            </div>
+          </div>
+          <div class="field">
+            <label for="namaPemilik">Nama Pemilik Hutan Hak <span class="req">*</span></label>
+            <input type="text" id="namaPemilik">
+          </div>
+          <span class="hint">Kosongkan tanggal untuk otomatis menggunakan tanggal saat dokumen diunduh.</span>
+        </fieldset>
+
+
+        <div class="form-actions">
+          <button type="submit" id="downloadBtn" class="btn btn--primary">Lihat & Download PDF</button>
+          <button type="button" id="resetBtn" class="btn btn--secondary">Reset Form</button>
+          <button type="button" id="downloadMentahBtn" class="btn btn--dashed">Download File Mentah (Kosong)</button>
+        </div>
+      </form>
+    </section>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- TEMPLATE CETAK (disembunyikan, dipakai persis utk generate PDF) -->
+  <!-- ============================================================ -->
+  <div id="printArea" class="print-area">
+    <div class="doc-title">DAFTAR KAYU BULAT / KAYU OLAHAN</div>
+    <div class="doc-subtitle">(DKB/DKO)</div>
+    <div class="doc-nomor" id="pv_nomor">Nomor : 080/DKB-DKO/ XII /2022</div>
+
+    <div class="doc-info">
+      <div class="doc-info-row"><span class="doc-info-label">Kabupaten/Kota</span><span>: <span
+            id="pv_kabkota">Sukabumi</span></span></div>
+      <div class="doc-info-row"><span class="doc-info-label">Provinsi</span><span>: <span id="pv_provinsi">Jawa
+            Barat</span></span></div>
+    </div>
+
+    <table class="doc-table">
+      <thead>
+        <tr>
+          <th class="col-no">No</th>
+          <th class="col-jenis">Jenis Kayu Bulat/Jenis<br>Kayu Olahan</th>
+          <th class="col-jumlah">Jumlah<br>Kpg/Bdl/Ikat</th>
+          <th class="col-panjang">Panjang<br>(m)</th>
+          <th class="col-diameter">Diameter<br>(cm)</th>
+          <th class="col-volume">Volume<br>(m&sup3;)</th>
+        </tr>
+      </thead>
+      <tbody id="pv_tbody">
+        <!-- diisi via JS -->
+      </tbody>
+      <tfoot>
+        <tr class="doc-total-row">
+          <td colspan="2" class="bold" style="text-align:center;">JUMLAH</td>
+          <td id="pv_footJumlah" class="bold">629 Btg</td>
+          <td class="bold">-</td>
+          <td class="bold">-</td>
+          <td id="pv_footVolume" class="bold">2.745 M&sup3;</td>
+        </tr>
+      </tfoot>
+    </table>
+
+    <div class="doc-notes">
+      <div>*) Coret Yang Tidak Perlu</div>
+      <div>DKB/DKO*) ini merupakan lampiran NOTA ANGKUTAN</div>
+      <div class="italic underline" id="pv_tanggalRange">Dari Tanggal : 06 s/d 07 Desember 2022</div>
+    </div>
+
+    <div class="doc-alat">
+      <span class="italic">Jenis Alat Angkut</span>
+      <span class="doc-alat-mid" id="pv_jenisAngkut">Pick Up</span>
+      <span>: <span id="pv_noPolisi">F 8017 HN</span></span>
+    </div>
+
+    <div class="doc-sign-block">
+      <div class="doc-sign-inner">
+        <div id="pv_kotaTanggal">Sukabumi, 24 Agustus 2026</div>
+        <div class="bold">PEMILIK HUTAN HAK</div>
+        <div class="doc-sign-image"><img id="pv_signatureImg" src="" alt=""></div>
+        <div class="underline" id="pv_namaPemilik">Endi Suhendi</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- OVERLAY -->
+  <div id="valOverlay" class="val-overlay"></div>
+
+  <!-- MODAL POPUP VALIDASI -->
+  <div id="validationToast" class="val-toast" role="dialog" aria-modal="true" aria-labelledby="toastTitle">
+    <div class="val-toast-inner">
+      <div class="val-toast-header">
+        <span class="val-toast-icon">⚠️</span>
+        <span class="val-toast-title" id="toastTitle">Mohon lengkapi data berikut:</span>
+        <button class="val-toast-close" id="toastCloseBtn" title="Tutup">✕ Tutup</button>
+      </div>
+      <ul class="val-toast-list" id="toastList"></ul>
+    </div>
+  </div>
+
+  <!-- OVERLAY MENTAH -->
+  <div id="mentahOverlay" class="val-overlay"></div>
+
+  <!-- MODAL DOWNLOAD MENTAH -->
+  <div id="mentahModal" class="val-toast mentah-modal" role="dialog" aria-modal="true">
+    <div class="val-toast-inner">
+      <div class="mentah-modal-icon">📄</div>
+      <div class="mentah-modal-title">Download File Mentah</div>
+      <div class="mentah-modal-desc">File PDF kosong (blangko) tanpa isian akan diunduh. Data yang sudah Anda isi tidak
+        akan hilang.</div>
+
+      <div class="mentah-field">
+        <label for="mentahJenisCount">+ Tambah Jenis Kayu</label>
+        <input type="number" id="mentahJenisCount" value="" placeholder="contoh : 1" min="0" max="30">
+      </div>
+      <div class="mentah-field">
+        <label for="mentahUkuranCount">+ Tambah Ukuran (baris per jenis)</label>
+        <input type="number" id="mentahUkuranCount" value="" placeholder="contoh : 1" min="0" max="20">
+      </div>
+
+      <div class="mentah-modal-actions">
+        <button type="button" id="mentahCancelBtn" class="btn btn--secondary">Batal</button>
+        <button type="button" id="mentahConfirmBtn" class="btn btn--primary">Ya, Download</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- OVERLAY PRATINJAU -->
+  <div id="previewOverlay" class="val-overlay"></div>
+
+  <!-- MODAL PRATINJAU DOKUMEN -->
+  <div id="previewModal" class="preview-modal" role="dialog" aria-modal="true">
+    <div class="preview-header">
+      <div class="preview-title">Pratinjau Dokumen</div>
+      <button class="preview-close" id="previewCloseBtn" title="Tutup">✕</button>
+    </div>
+
+    <div class="preview-body">
+      <div class="preview-zoom-control">
+        <button type="button" id="zoomOutBtn">−</button>
+        <span id="zoomLevel">100%</span>
+        <button type="button" id="zoomInBtn">+</button>
+      </div>
+      <div class="preview-scroll-area">
+        <div class="preview-canvas-wrapper" id="previewWrapper">
+          <img id="previewImg" src="" alt="Pratinjau Dokumen">
+        </div>
+      </div>
+    </div>
+
+    <div class="preview-footer">
+      <button type="button" id="previewCancelBtn" class="btn btn--secondary">Kembali Edit</button>
+      <button type="button" id="previewDownloadBtn" class="btn btn--primary">Lanjut Download PDF</button>
+    </div>
+  </div>
+
+  <!-- OVERLAY CONFIRM & LOADING -->
+  <div id="actionOverlay" class="val-overlay"></div>
+
+  <!-- MODAL KONFIRMASI DOWNLOAD -->
+  <div id="confirmModal" class="val-toast mentah-modal" role="dialog" aria-modal="true">
+    <div class="val-toast-inner">
+      <div class="mentah-modal-icon">📄</div>
+      <div class="mentah-modal-title">Download PDF</div>
+      <div class="mentah-modal-desc">Dokumen akan diunduh sebagai file PDF.<br>Pastikan semua data sudah benar.</div>
+      <div class="mentah-modal-actions">
+        <button type="button" id="confirmCancelBtn" class="btn btn--secondary">Batal</button>
+        <button type="button" id="confirmOkBtn" class="btn btn--primary">Ya, Download</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL LOADING -->
+  <div id="loadingModal" class="val-toast loading-modal" role="dialog" aria-modal="true">
+    <div class="val-toast-inner">
+      <div class="loading-spinner"></div>
+      <div class="loading-title">Membuat PDF...</div>
+      <div class="loading-bar">
+        <div class="loading-progress"></div>
+      </div>
+      <div class="loading-desc" id="loadingDesc">Memproses halaman 1 dari 1...</div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+
+</html>
