@@ -968,4 +968,465 @@
     formError.textContent = '';
   });
 
+/* =============================================================== */
+/* PDF SCAN FEATURE (NOTA ANGKUTAN)                                  */
+/* =============================================================== */
+
+if (typeof pdfjsLib !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+const ocrOverlay       = document.getElementById('ocrOverlay');
+const ocrLoadingModal  = document.getElementById('ocrLoadingModal');
+const ocrProgressBar   = document.getElementById('ocrProgressBar');
+const ocrLoadingDesc   = document.getElementById('ocrLoadingDesc');
+const ocrReviewModal   = document.getElementById('ocrReviewModal');
+const ocrGroupsPreview = document.getElementById('ocrGroupsPreview');
+
+let ocrData = { rows: [] };
+
+function showOcrLoading(desc, pct) {
+  ocrOverlay.classList.add('val-overlay--show');
+  ocrLoadingModal.classList.add('val-toast--show');
+  if (desc) ocrLoadingDesc.textContent = desc;
+  if (pct !== undefined) ocrProgressBar.style.width = pct + '%';
+}
+
+function hideOcrLoading() {
+  ocrLoadingModal.classList.remove('val-toast--show');
+  ocrOverlay.classList.remove('val-overlay--show');
+}
+
+function showOcrReview() {
+  hideOcrLoading();
+  ocrReviewModal.classList.add('ocr-review-modal--show');
+}
+
+function hideOcrReview() {
+  ocrReviewModal.classList.remove('ocr-review-modal--show');
+}
+
+async function extractTextFromPDF(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let fullText = '';
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    showOcrLoading(`Membaca halaman ${i} dari ${pdf.numPages}...`, Math.round((i / pdf.numPages) * 30));
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 1.0 });
+    const content = await page.getTextContent();
+    const pageWidth = viewport.width;
+
+    // Kumpulkan item teks yang tidak kosong
+    const textItems = content.items
+      .filter(it => it.str && it.str.trim().length > 0)
+      .map(it => ({ str: it.str.trim(), x: it.transform[4], y: it.transform[5] }));
+
+    const extractedRaw = textItems.map(it => it.str).join(' ');
+    let pageText = '';
+
+    if (extractedRaw.trim().length < 50) {
+      // PDF berbasis gambar → gunakan Tesseract OCR
+      showOcrLoading(`Memproses OCR Gambar halaman ${i}...`, 40);
+      const vp2 = page.getViewport({ scale: 2.0 });
+      const canvas = document.createElement('canvas');
+      canvas.width = vp2.width;
+      canvas.height = vp2.height;
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp2 }).promise;
+      showOcrLoading(`Menjalankan AI Scanner halaman ${i}...`, 60);
+      if (typeof Tesseract === 'undefined') throw new Error('Tesseract.js belum dimuat.');
+      const worker = await Tesseract.createWorker('ind');
+      const res = await worker.recognize(canvas);
+      pageText = res.data.text;
+      await worker.terminate();
+    } else {
+      // PDF berbasis teks → ekstrak dengan pemisahan kolom kiri/kanan
+      // Nota Angkutan punya 2 kolom: ASAL KAYU (kiri) dan TUJUAN/MASA BERLAKU (kanan)
+      // Titik pemisah kolom ≈ 48% lebar halaman
+      const colSplit = pageWidth * 0.48;
+
+      // Kelompokkan item ke dalam baris (Y dalam toleransi 6pt = baris yang sama)
+      const rowGroups = [];
+      textItems.sort((a, b) => b.y - a.y || a.x - b.x); // atas ke bawah, kiri ke kanan
+
+      for (const item of textItems) {
+        const lastGroup = rowGroups[rowGroups.length - 1];
+        if (lastGroup && Math.abs(item.y - lastGroup.y) <= 6) {
+          lastGroup.items.push(item);
+        } else {
+          rowGroups.push({ y: item.y, items: [item] });
+        }
+      }
+
+      // Untuk setiap baris, output kolom kiri dan kanan pada BARIS TERPISAH
+      // sehingga field tidak saling mencemari antar kolom
+      for (const group of rowGroups) {
+        group.items.sort((a, b) => a.x - b.x);
+        const leftItems  = group.items.filter(it => it.x < colSplit);
+        const rightItems = group.items.filter(it => it.x >= colSplit);
+
+        const leftText  = leftItems.map(it => it.str).join(' ').trim();
+        const rightText = rightItems.map(it => it.str).join(' ').trim();
+
+        // Setiap kolom pada baris sendiri → cegah campur kolom kiri-kanan
+        if (leftText)  pageText += leftText  + '\n';
+        if (rightText) pageText += rightText + '\n';
+      }
+    }
+
+    fullText += pageText + '\n\n';
+  }
+
+  return fullText.trim();
+}
+
+function parsePDFText(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  // console.log('=== EXTRACTED LINES ==='); lines.forEach((l,i) => console.log(i, l)); // DEBUG
+  const result = {
+    nomor: '', desa: '', kecamatan: '', kabupaten: '', provinsi: '',
+    buktiKepemilikan: '', noBuktiKepemilikan: '', pengirim: '', alamatPengirim1: '',
+    tempatMuat: '', jenisIdentitas: '',
+    alatAngkut: '', noPol: '',
+    namaPenerima: '', alamatPenerima1: '',
+    rows: []
+  };
+
+  // ── Helper: cari baris pertama yang cocok dengan labelPattern,
+  //    opsional lewati baris yang cocok dengan excludePattern.
+  //    Kembalikan teks setelah label (capture group 1).
+  function extractField(labelPattern, excludePattern) {
+    for (const line of lines) {
+      if (excludePattern && excludePattern.test(line)) continue;
+      const m = line.match(labelPattern);
+      if (m) {
+        return (m[1] || '').replace(/^[\s:;]+/, '').trim();
+      }
+    }
+    return '';
+  }
+
+  // ── Potong nilai jika menemukan kata yang merupakan awal field lain.
+  //    Mencegah "Girik Nama Penerima : X" menjadi "Girik Nama Penerima : X"
+  const STOP_WORDS = /\b(?:Kecamatan|Kabupaten|Provinsi|Pengirim|Penerima|Bukti|Tempat\s+Muat|Jenis\s+(?:dan|dan|&)?\s*Identitas|Alat\s*Angkut|Nama\s+Penerima|Alamat|Nomor|Selama|Dari\s+Tanggal|Sampai\s+Tanggal|MASA\s+BERLAKU|ASAL\s+KAYU|TUJUAN|Catatan|JUMLAH)\b/i;
+
+  function trimAtStop(val) {
+    if (!val) return '';
+    const idx = val.search(STOP_WORDS);
+    return (idx > 0 ? val.slice(0, idx) : val).replace(/[;:,\s]+$/, '').trim();
+  }
+
+  // ── Parse semua field header ──────────────────────────────────────
+  result.nomor    = trimAtStop(extractField(/Nomor\s*[:\s]\s*(.*)/i));
+  result.desa     = trimAtStop(extractField(/\bDesa\s*[:\s]\s*(.*)/i));
+  result.kecamatan= trimAtStop(extractField(/Kecamatan\s*[:\s]\s*(.*)/i));
+  result.kabupaten= trimAtStop(extractField(/Kabupaten\s*\/?\s*Kota\s*[:\s]\s*(.*)/i));
+  result.provinsi = trimAtStop(extractField(/\bProvinsi\s*[:\s]\s*(.*)/i));
+
+  // ── Bukti Kepemilikan: JANGAN cocok ke baris "No.Bukti Kepemilikan"
+  //    Gunakan excludePattern agar baris yg diawali "No" dilewati
+  result.buktiKepemilikan = trimAtStop(
+    extractField(/Bukti\s*Kepemilikan\*?\)?\s*[:\s]\s*(.*)/i,
+                 /No\.?\s*Bukti/i)   // ← lewati baris No.Bukti Kepemilikan
+  );
+  result.noBuktiKepemilikan = trimAtStop(
+    extractField(/No\.?\s*Bukti\s*Kepemilikan\s*[:\s]\s*(.*)/i)
+  );
+
+  result.pengirim = trimAtStop(extractField(/\bPengirim\s*[:\s]\s*(.*)/i));
+
+  // ── Alamat Pengirim: jangan cocok ke baris "Alamat Penerima"
+  result.alamatPengirim1 = trimAtStop(
+    extractField(/Alamat\s*Pengirim\s*[:\s]\s*(.*)/i,
+                 /Alamat\s*Penerima/i)
+  );
+
+  result.tempatMuat    = trimAtStop(extractField(/Tempat\s*Muat\s*[:\s]\s*(.*)/i));
+  result.jenisIdentitas= trimAtStop(extractField(/Jenis\s*(?:dan|&|Dan)?\s*Identitas\s*[:\s]\s*(.*)/i));
+
+  // ── Alat Angkut: potong jika NO.POL ada di baris yang sama
+  result.alatAngkut = trimAtStop(
+    extractField(/Alat\s*Angkut\s*[:\s]\s*(.*)/i)
+      .replace(/\s*NO\.?\s*P[O0]L.*/i, '')
+      .trim()
+  );
+
+  // ── NO.POL: cari baris yg mengandung NO.POL lalu ambil hanya nomor polisi-nya
+  //    Nomor polisi biasanya 1-3 kata pendek (maks 15 karakter) seperti "F 1234 AB"
+  (function () {
+    for (const line of lines) {
+      const m = line.match(/NO\.?\s*P[O0]L\s*[:\s]\s*(.*)/i);
+      if (m) {
+        // Ambil teks setelah NO.POL, potong di stop word
+        let val = (m[1] || '').replace(/^[\s:;]+/, '').trim();
+        val = trimAtStop(val);
+        // Batasi: ambil maksimal 3 token (cukup untuk plat nomor)
+        val = val.split(/\s+/).slice(0, 3).join(' ');
+        result.noPol = val;
+        return;
+      }
+    }
+    // Fallback: mungkin NO.POL ada di baris Alat Angkut (kolom inline)
+    for (const line of lines) {
+      const m = line.match(/Alat\s*Angkut\s*[:\s]\s*(.*?)\s+NO\.?\s*P[O0]L\s*[:\s]\s*(.*)/i);
+      if (m) {
+        if (!result.alatAngkut) result.alatAngkut = trimAtStop(m[1].trim());
+        result.noPol = trimAtStop(m[2].trim()).split(/\s+/).slice(0, 3).join(' ');
+        return;
+      }
+    }
+  })();
+
+  result.namaPenerima = trimAtStop(extractField(/Nama\s*Penerima\s*[:\s]\s*(.*)/i));
+
+  // ── Alamat Penerima: jangan cocok ke baris "Alamat Pengirim"
+  result.alamatPenerima1 = trimAtStop(
+    extractField(/Alamat\s*(?:Penerima|Tujuan)\s*[:\s]\s*(.*)/i,
+                 /Alamat\s*Pengirim/i)
+  );
+
+  // ── Parse Tabel Hasil Hutan ───────────────────────────────────────
+  // Tabel kolom: Nomor | Jenis Hasil Hutan | Jumlah (Batang/Kapling/Ikat) | Volume (SM) | Keterangan
+  let tableStartIdx = -1;
+  let tableEndIdx   = lines.length;
+
+  // Cari header tabel
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i].toLowerCase();
+    if (l.includes('jenis hasil hutan') || (l.includes('batang') && l.includes('kapling'))) {
+      tableStartIdx = i + 1;
+      break;
+    }
+  }
+
+  // Cari akhir tabel
+  if (tableStartIdx >= 0) {
+    for (let i = tableStartIdx; i < lines.length; i++) {
+      const l = lines[i].toLowerCase().trim();
+      if (
+        /^jumlah\b/.test(l) ||
+        l.includes('catatan') ||
+        l.includes('diisi bukti') ||
+        l.includes('pemilik hutan') ||
+        /^selama\b/.test(l) ||
+        /^dari tanggal/.test(l) ||
+        /^sampai tanggal/.test(l)
+      ) {
+        tableEndIdx = i;
+        break;
+      }
+    }
+  }
+
+  if (tableStartIdx >= 0) {
+    const dataLines = lines.slice(tableStartIdx, tableEndIdx);
+    const NOISE = new Set([
+      'nomor','jenis','hasil','hutan','jumlah','volume','keterangan',
+      'batang','kapling','ikat','sm','btg','kpl','ikt','no',
+      '(sm)','(batang/kapling/ikat)','batang/kapling/ikat'
+    ]);
+
+    for (const rawLine of dataLines) {
+      const raw = rawLine.replace(/[|]/g, ' ').trim();
+      if (!raw) continue;
+
+      const tokens = raw.split(/\s+/).filter(t => t.length > 0);
+
+      // Lewati baris yang semua tokennya adalah noise header
+      if (tokens.every(t => NOISE.has(t.toLowerCase().replace(/[()\/]/g, '')))) continue;
+
+      let ti = 0;
+
+      // Lewati nomor baris (angka di awal diikuti huruf)
+      if (/^\d+$/.test(tokens[ti]) && ti + 1 < tokens.length && /[a-zA-Z]/.test(tokens[ti + 1])) ti++;
+
+      // Lewati token noise di awal
+      while (ti < tokens.length && NOISE.has(tokens[ti].toLowerCase().replace(/[()\/]/g, ''))) ti++;
+
+      // Ambil nama jenis kayu (kata-kata yang mengandung huruf, stop di angka)
+      const woodParts = [];
+      while (ti < tokens.length && /[a-zA-Z]/.test(tokens[ti]) && !/^\d+([.,]\d+)?$/.test(tokens[ti])) {
+        woodParts.push(tokens[ti]);
+        ti++;
+      }
+      if (woodParts.length === 0) continue;
+
+      // Ambil jumlah (angka bulat wajib)
+      let jumlah = '';
+      if (ti < tokens.length && /^\d+$/.test(tokens[ti])) {
+        jumlah = tokens[ti]; ti++;
+      } else continue;
+
+      // Ambil volume (angka opsional, bisa desimal)
+      let volume = '';
+      if (ti < tokens.length && /^\d+([.,]\d+)?$/.test(tokens[ti])) {
+        volume = tokens[ti]; ti++;
+      }
+
+      // Sisa = keterangan
+      const keterangan = tokens.slice(ti).join(' ');
+
+      result.rows.push({ jenis: woodParts.join(' '), jumlah, volume, keterangan });
+    }
+  }
+
+  if (result.rows.length === 0) {
+    result.rows.push({ jenis: '', jumlah: '', volume: '', keterangan: '' });
+  }
+
+  return result;
+}
+
+function renderOcrGroupsPreview() {
+  ocrGroupsPreview.innerHTML = '';
+  document.getElementById('ocrGroupCount').textContent =
+    ocrData.rows.length > 0 ? `(${ocrData.rows.length} baris)` : '';
+
+  const table = document.createElement('table');
+  table.className = 'ocr-rows-table';
+  table.innerHTML = `<thead><tr>
+    <th>Jenis Kayu</th><th>Jumlah</th><th>Volume</th><th>Keterangan</th><th></th>
+  </tr></thead>`;
+  const tbody = document.createElement('tbody');
+
+  ocrData.rows.forEach((row, idx) => {
+    const tr = document.createElement('tr');
+    ['jenis','jumlah','volume','keterangan'].forEach(key => {
+      const td = document.createElement('td');
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.value = row[key] || '';
+      inp.placeholder = key;
+      inp.addEventListener('input', e => { row[key] = e.target.value; });
+      td.appendChild(inp);
+      tr.appendChild(td);
+    });
+    
+    const tdDel = document.createElement('td');
+    tdDel.className = 'td-del';
+    const delBtn = document.createElement('button');
+    delBtn.className = 'ocr-row-del-btn';
+    delBtn.type = 'button';
+    delBtn.textContent = '✕';
+    delBtn.addEventListener('click', () => {
+      ocrData.rows.splice(idx, 1);
+      if (ocrData.rows.length === 0) ocrData.rows.push({ jenis:'', jumlah:'', volume:'', keterangan:'' });
+      renderOcrGroupsPreview();
+    });
+    tdDel.appendChild(delBtn);
+    tr.appendChild(tdDel);
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  ocrGroupsPreview.appendChild(table);
+}
+
+function applyOcrToForm() {
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && val) el.value = val;
+  };
+  set('nomor', document.getElementById('ocr_nomor').value);
+  set('desa', document.getElementById('ocr_desa').value);
+  set('kecamatan', document.getElementById('ocr_kecamatan').value);
+  set('kabupaten', document.getElementById('ocr_kabupaten').value);
+  set('provinsi', document.getElementById('ocr_provinsi').value);
+  set('buktiKepemilikan', document.getElementById('ocr_buktiKepemilikan').value);
+  set('noBuktiKepemilikan', document.getElementById('ocr_noBuktiKepemilikan').value);
+  set('pengirim', document.getElementById('ocr_pengirim').value);
+  set('alamatPengirim1', document.getElementById('ocr_alamatPengirim1').value);
+  set('tempatMuat', document.getElementById('ocr_tempatMuat').value);
+  set('jenisIdentitas', document.getElementById('ocr_jenisIdentitas').value);
+  set('namaPenerima', document.getElementById('ocr_namaPenerima').value);
+  set('alamatPenerima1', document.getElementById('ocr_alamatPenerima1').value);
+  set('alatAngkut', document.getElementById('ocr_alatAngkut').value);
+  set('noPol', document.getElementById('ocr_noPol').value);
+
+  // Apply rows
+  rowIdCounter = 0;
+  // Asumsi 'rows' dari local scope NA
+  window.rows = ocrData.rows.map(r => {
+    rowIdCounter++;
+    return {
+      id: rowIdCounter,
+      jenis: r.jenis || '',
+      jumlah: r.jumlah || '',
+      satuanJumlah: 'BTG',
+      volume: r.volume || '',
+      keterangan: r.keterangan || ''
+    };
+  });
+  if (window.rows.length === 0) {
+    window.rows.push({ id: ++rowIdCounter, jenis: "", jumlah: "", satuanJumlah: "BTG", volume: "", keterangan: "" });
+  }
+
+  // Panggil ulang render NA (karena functions mungkin local)
+  if (typeof renderRowEditor === 'function') renderRowEditor();
+  if (typeof renderPreview === 'function') renderPreview();
+  if (typeof saveNA === 'function') saveNA();
+  
+  hideOcrReview();
+  document.querySelector('.form-panel').scrollTop = 0;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+document.getElementById('scanPdfInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+
+  if (typeof pdfjsLib === 'undefined') {
+    alert('Library PDF.js belum dimuat. Periksa koneksi internet.');
+    return;
+  }
+
+  showOcrLoading('Membuka file PDF...', 10);
+  try {
+    const rawText = await extractTextFromPDF(file);
+    showOcrLoading('Menganalisis teks...', 90);
+    await new Promise(r => setTimeout(r, 200));
+
+    ocrData = parsePDFText(rawText);
+    hideOcrLoading();
+
+    document.getElementById('ocr_nomor').value = ocrData.nomor;
+    document.getElementById('ocr_desa').value = ocrData.desa;
+    document.getElementById('ocr_kecamatan').value = ocrData.kecamatan;
+    document.getElementById('ocr_kabupaten').value = ocrData.kabupaten;
+    document.getElementById('ocr_provinsi').value = ocrData.provinsi;
+    document.getElementById('ocr_buktiKepemilikan').value = ocrData.buktiKepemilikan;
+    document.getElementById('ocr_noBuktiKepemilikan').value = ocrData.noBuktiKepemilikan;
+    document.getElementById('ocr_pengirim').value = ocrData.pengirim;
+    document.getElementById('ocr_alamatPengirim1').value = ocrData.alamatPengirim1;
+    document.getElementById('ocr_tempatMuat').value = ocrData.tempatMuat;
+    document.getElementById('ocr_jenisIdentitas').value = ocrData.jenisIdentitas;
+    document.getElementById('ocr_namaPenerima').value = ocrData.namaPenerima;
+    document.getElementById('ocr_alamatPenerima1').value = ocrData.alamatPenerima1;
+    document.getElementById('ocr_alatAngkut').value = ocrData.alatAngkut;
+    document.getElementById('ocr_noPol').value = ocrData.noPol;
+
+    renderOcrGroupsPreview();
+    showOcrReview();
+  } catch (err) {
+    hideOcrLoading();
+    console.error(err);
+    alert('Gagal membaca PDF: ' + err.message);
+  }
+});
+
+document.getElementById('ocrAddRowBtn').addEventListener('click', () => {
+  ocrData.rows.push({ jenis:'', jumlah:'', volume:'', keterangan:'' });
+  renderOcrGroupsPreview();
+});
+
+document.getElementById('ocrApplyBtn').addEventListener('click', applyOcrToForm);
+document.getElementById('ocrCancelBtn').addEventListener('click', hideOcrReview);
+document.getElementById('ocrReviewCloseBtn').addEventListener('click', hideOcrReview);
+ocrOverlay.addEventListener('click', hideOcrLoading);
+ocrReviewModal.addEventListener('click', (e) => {
+  if (e.target === ocrReviewModal) hideOcrReview();
+});
 })();
