@@ -8,6 +8,8 @@
   <link rel="stylesheet" href="style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 </head>
 
 <body>
@@ -29,6 +31,21 @@
   <div class="app-body">
     <section class="panel form-panel">
       <form id="dkbForm">
+
+        <!-- ============ SCAN PDF ============ -->
+        <div class="scan-pdf-banner">
+          <div class="scan-pdf-info">
+            <span class="scan-pdf-icon">📄</span>
+            <div>
+              <div class="scan-pdf-title">Import dari PDF</div>
+              <div class="scan-pdf-desc">Upload file PDF dokumen DKB/DKO untuk otomatis mengisi form</div>
+            </div>
+          </div>
+          <label for="scanPdfInput" class="btn btn--scan" id="scanPdfBtn">
+            📷 Scan PDF
+          </label>
+          <input type="file" id="scanPdfInput" accept="application/pdf" style="display:none;">
+        </div>
 
         <!-- ============ DATA UMUM ============ -->
         <fieldset class="group">
@@ -178,7 +195,7 @@
           <th class="col-no">No</th>
           <th class="col-jenis">Jenis Kayu Bulat/Jenis<br>Kayu Olahan</th>
           <th class="col-jumlah">Jumlah<br>Kpg/Bdl/Ikat</th>
-          <th class="col-panjang">Panjang<br>(m)</th>
+          <th class="col-panjang">Panjang<br>(cm)</th>
           <th class="col-diameter">Diameter<br>(cm)</th>
           <th class="col-volume">Volume<br>(m&sup3;)</th>
         </tr>
@@ -197,24 +214,26 @@
       </tfoot>
     </table>
 
-    <div class="doc-notes">
-      <div>*) Coret Yang Tidak Perlu</div>
-      <div>DKB/DKO*) ini merupakan lampiran NOTA ANGKUTAN</div>
-      <div class="italic underline" id="pv_tanggalRange">Dari Tanggal : 06 s/d 07 Desember 2022</div>
-    </div>
+    <div id="docBottomSection">
+      <div class="doc-notes">
+        <div>*) Coret Yang Tidak Perlu</div>
+        <div>DKB/DKO*) ini merupakan lampiran NOTA ANGKUTAN</div>
+        <div class="italic underline" id="pv_tanggalRange">Dari Tanggal : 06 s/d 07 Desember 2022</div>
+      </div>
 
-    <div class="doc-alat">
-      <span class="italic">Jenis Alat Angkut</span>
-      <span class="doc-alat-mid" id="pv_jenisAngkut">Pick Up</span>
-      <span>: <span id="pv_noPolisi">F 8017 HN</span></span>
-    </div>
+      <div class="doc-alat">
+        <span class="italic">Jenis Alat Angkut</span>
+        <span class="doc-alat-mid" id="pv_jenisAngkut">Pick Up</span>
+        <span>: <span id="pv_noPolisi">F 8017 HN</span></span>
+      </div>
 
-    <div class="doc-sign-block">
-      <div class="doc-sign-inner">
-        <div id="pv_kotaTanggal">Sukabumi, 24 Agustus 2026</div>
-        <div class="bold">PEMILIK HUTAN HAK</div>
-        <div class="doc-sign-image"><img id="pv_signatureImg" src="" alt=""></div>
-        <div class="underline" id="pv_namaPemilik">Endi Suhendi</div>
+      <div class="doc-sign-block">
+        <div class="doc-sign-inner">
+          <div id="pv_kotaTanggal">Sukabumi, 24 Agustus 2026</div>
+          <div class="bold">PEMILIK HUTAN HAK</div>
+          <div class="doc-sign-image"><img id="pv_signatureImg" src="" alt=""></div>
+          <div class="underline" id="pv_namaPemilik">Endi Suhendi</div>
+        </div>
       </div>
     </div>
   </div>
@@ -316,6 +335,80 @@
         <div class="loading-progress"></div>
       </div>
       <div class="loading-desc" id="loadingDesc">Memproses halaman 1 dari 1...</div>
+    </div>
+  </div>
+
+  <!-- OVERLAY OCR -->
+  <div id="ocrOverlay" class="val-overlay"></div>
+
+  <!-- MODAL LOADING OCR -->
+  <div id="ocrLoadingModal" class="val-toast loading-modal" role="dialog" aria-modal="true">
+    <div class="val-toast-inner">
+      <div class="loading-spinner"></div>
+      <div class="loading-title">Membaca PDF...</div>
+      <div class="loading-bar">
+        <div class="loading-progress" id="ocrProgressBar"></div>
+      </div>
+      <div class="loading-desc" id="ocrLoadingDesc">Mengekstrak teks dari dokumen...</div>
+    </div>
+  </div>
+
+  <!-- MODAL REVIEW HASIL SCAN -->
+  <div id="ocrReviewModal" class="ocr-review-modal" role="dialog" aria-modal="true">
+    <div class="ocr-review-inner">
+      <div class="ocr-review-header">
+        <div class="ocr-review-title">📄 Hasil Scan PDF</div>
+        <button class="preview-close" id="ocrReviewCloseBtn" title="Tutup">✕</button>
+      </div>
+      <div class="ocr-review-body">
+        <div class="ocr-review-note">
+          ⚠️ Periksa dan edit data di bawah sebelum diterapkan ke form. Kolom yang kosong berarti tidak ditemukan di PDF.
+        </div>
+
+        <!-- FIELD UMUM -->
+        <div class="ocr-section-title">Data Umum</div>
+        <div class="ocr-field-grid">
+          <div class="ocr-field">
+            <label>Nomor Nota</label>
+            <input type="text" id="ocr_nomor">
+          </div>
+          <div class="ocr-field">
+            <label>Kabupaten/Kota</label>
+            <input type="text" id="ocr_kabkota">
+          </div>
+          <div class="ocr-field">
+            <label>Provinsi</label>
+            <input type="text" id="ocr_provinsi">
+          </div>
+        </div>
+
+        <!-- FIELD PENGANGKUTAN -->
+        <div class="ocr-section-title">Informasi Pengangkutan</div>
+        <div class="ocr-field-grid">
+          <div class="ocr-field">
+            <label>Jenis Alat Angkut</label>
+            <input type="text" id="ocr_jenisAngkut">
+          </div>
+          <div class="ocr-field">
+            <label>No. Polisi</label>
+            <input type="text" id="ocr_noPolisi">
+          </div>
+          <div class="ocr-field">
+            <label>Nama Pemilik</label>
+            <input type="text" id="ocr_namaPemilik">
+          </div>
+        </div>
+
+        <!-- TABEL KAYU -->
+        <div class="ocr-section-title">Daftar Jenis Kayu <span id="ocrGroupCount" style="font-weight:400;font-size:13px;"></span></div>
+        <div id="ocrGroupsPreview" class="ocr-groups-preview"></div>
+        <button type="button" class="btn btn--ghost" id="ocrAddGroupBtn" style="margin-top:8px;">+ Tambah Baris Jenis Kayu</button>
+      </div>
+
+      <div class="ocr-review-footer">
+        <button type="button" id="ocrCancelBtn" class="btn btn--secondary">Batal</button>
+        <button type="button" id="ocrApplyBtn" class="btn btn--primary">✅ Terapkan ke Form</button>
+      </div>
     </div>
   </div>
 

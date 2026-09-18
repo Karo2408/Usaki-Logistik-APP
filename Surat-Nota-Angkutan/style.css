@@ -64,7 +64,7 @@ button {
   position: sticky;
   top: 0;
   z-index: 10;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .btn-back-home {
@@ -512,6 +512,7 @@ button {
   .form-actions {
     flex-direction: column-reverse;
   }
+
   .form-actions .btn {
     width: 100%;
     padding: 14px 16px;
@@ -543,8 +544,13 @@ button {
 }
 
 @keyframes overlayFadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .validation-popup {
@@ -560,8 +566,15 @@ button {
 }
 
 @keyframes popupIn {
-  from { opacity: 0; transform: scale(0.94) translateY(10px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
+  from {
+    opacity: 0;
+    transform: scale(0.94) translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
 }
 
 .validation-popup__header {
@@ -792,7 +805,7 @@ button {
   font-family: "Times New Roman", Times, serif;
   font-size: 15px;
   line-height: 1.5;
-  padding: 40px 50px;
+  padding: 2cm;
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.18);
   position: relative;
   box-sizing: border-box;
@@ -888,23 +901,27 @@ button {
   display: flex;
   align-items: flex-end;
   flex-wrap: nowrap;
-  white-space: nowrap;
+  width: 100%;
+}
+
+.doc-line-alat .doc-label {
+  width: 85px;
 }
 
 .doc-line-alat::after {
-  content: "";
-  flex-grow: 1;
+  content: none;
 }
 
 .doc-value-alat {
   flex-grow: 0;
-  flex-shrink: 0;
-  min-width: 70px;
+  flex-shrink: 1;
+  min-width: 40px;
   width: auto;
+  white-space: nowrap;
 }
 
 .doc-label-nopol {
-  margin-left: 5px;
+  margin-left: 10px;
   margin-right: 5px;
   flex-shrink: 0;
   white-space: nowrap;
@@ -914,14 +931,16 @@ button {
 .doc-colon-nopol {
   margin-right: 5px;
   font-size: 12.5px;
+  flex-shrink: 0;
 }
 
 .doc-value-nopol {
-  flex-grow: 0;
-  flex-shrink: 0;
-  min-width: 70px;
+  flex-grow: 1;
+  flex-shrink: 1;
+  min-width: 30px;
   width: auto;
   font-size: 12.5px;
+  white-space: nowrap;
 }
 
 .doc-table {
@@ -1007,7 +1026,7 @@ button {
 }
 
 .doc-signature__role {
-  margin-bottom: 70px;
+  margin-bottom: 5px;
 }
 
 .doc-signature__name {
@@ -1062,8 +1081,15 @@ button {
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(30px) scale(0.95); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .confirm-modal__icon {
@@ -1121,7 +1147,7 @@ button {
   max-width: 320px;
   width: calc(100% - 40px);
   text-align: center;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
   animation: slideUp 0.2s ease forwards;
 }
 
@@ -1136,7 +1162,9 @@ button {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .loading-overlay__label {

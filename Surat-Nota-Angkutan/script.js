@@ -229,26 +229,26 @@
   // ---------- VALIDASI ----------
   // Map field id -> label yang ditampilkan di popup
   const FIELD_LABELS = [
-    { id: "nomor",            label: "Nomor" },
-    { id: "desa",             label: "Desa" },
-    { id: "kecamatan",        label: "Kecamatan" },
-    { id: "kabupaten",        label: "Kabupaten/Kota" },
-    { id: "provinsi",         label: "Provinsi" },
+    { id: "nomor", label: "Nomor" },
+    { id: "desa", label: "Desa" },
+    { id: "kecamatan", label: "Kecamatan" },
+    { id: "kabupaten", label: "Kabupaten/Kota" },
+    { id: "provinsi", label: "Provinsi" },
     { id: "buktiKepemilikan", label: "Bukti Kepemilikan" },
     { id: "noBuktiKepemilikan", label: "No. Bukti Kepemilikan" },
-    { id: "pengirim",         label: "Pengirim" },
-    { id: "alamatPengirim1",  label: "Alamat Pengirim (baris 1)" },
-    { id: "tempatMuat",       label: "Tempat Muat" },
-    { id: "jenisIdentitas",   label: "Jenis dan Identitas" },
-    { id: "alatAngkut",       label: "Alat Angkut" },
-    { id: "noPol",            label: "NO. POL" },
-    { id: "namaPenerima",     label: "Nama Penerima" },
-    { id: "alamatPenerima1",  label: "Alamat Penerima (baris 1)" },
-    { id: "selama",           label: "Selama" },
-    { id: "dariTanggal",      label: "Dari Tanggal" },
-    { id: "sampaiTanggal",    label: "Sampai Tanggal" },
-    { id: "kotaTtd",          label: "Kota (Tanda Tangan)" },
-    { id: "namaPemilik",      label: "Nama Pemilik Hutan Hak" },
+    { id: "pengirim", label: "Pengirim" },
+    { id: "alamatPengirim1", label: "Alamat Pengirim (baris 1)" },
+    { id: "tempatMuat", label: "Tempat Muat" },
+    { id: "jenisIdentitas", label: "Jenis dan Identitas" },
+    { id: "alatAngkut", label: "Alat Angkut" },
+    { id: "noPol", label: "NO. POL" },
+    { id: "namaPenerima", label: "Nama Penerima" },
+    { id: "alamatPenerima1", label: "Alamat Penerima (baris 1)" },
+    { id: "selama", label: "Selama" },
+    { id: "dariTanggal", label: "Dari Tanggal" },
+    { id: "sampaiTanggal", label: "Sampai Tanggal" },
+    { id: "kotaTtd", label: "Kota (Tanda Tangan)" },
+    { id: "namaPemilik", label: "Nama Pemilik Hutan Hak" },
   ];
 
   function validateForm() {
@@ -401,6 +401,7 @@
     rows.push(row);
     renderRowEditor();
     renderPreview();
+    if (typeof saveNA === 'function') saveNA();
   }
 
 
@@ -422,6 +423,7 @@
         }
         renderRowEditor();
         renderPreview();
+        if (typeof saveNA === 'function') saveNA();
       });
       headerWrap.appendChild(title);
       headerWrap.appendChild(deleteBtn);
@@ -504,7 +506,7 @@
     return new Promise((resolve) => {
       confirmModalTitle.textContent = title;
       confirmModalDesc.textContent = desc;
-      
+
       const blankRowConfig = document.getElementById("blankRowConfig");
       if (blankRowConfig) {
         blankRowConfig.style.display = isBlankDownload ? "block" : "none";
@@ -646,7 +648,7 @@
       rows = [];
       rowIdCounter = 0;
       addRow();
-      
+
       const sigCnv = document.getElementById('signaturePad');
       if (sigCnv) {
         const ctx = sigCnv.getContext('2d');
@@ -670,7 +672,7 @@
   });
   form.addEventListener("input", renderPreview);
 
-      // Wire up confirm modal to Lanjut Download PDF btn in preview modal
+  // Wire up confirm modal to Lanjut Download PDF btn in preview modal
   document.getElementById("confirmDownloadBtn").addEventListener("click", async () => {
     const confirmed = await showConfirm(
       "Download PDF",
@@ -704,7 +706,7 @@
             el.value = "";
           }
         });
-        
+
         const numRows = parseInt(document.getElementById("blankRowCount").value, 10) || 1;
         rows = [];
         for (let i = 0; i < numRows; i++) {
@@ -860,7 +862,7 @@
     }, { passive: false });
     sigCanvas.addEventListener('touchmove', drawSig, { passive: false });
     window.addEventListener('touchend', () => { if (isDrawingSig) { isDrawingSig = false; saveSig(); } });
-    
+
     document.getElementById('clearSignatureBtn').addEventListener('click', () => {
       sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
       signatureData = null;
@@ -868,8 +870,102 @@
     });
   }
 
+  // ---------- AUTO-SAVE (localStorage) ----------
+  const SAVE_KEY_NA = 'nota_angkutan_autosave';
+  const FORM_FIELD_IDS_NA = [
+    'nomor','desa','kecamatan','kabupaten','provinsi',
+    'buktiKepemilikan','noBuktiKepemilikan','pengirim','alamatPengirim1','alamatPengirim2',
+    'tempatMuat','jenisIdentitas','alatAngkut','noPol',
+    'namaPenerima','alamatPenerima1','alamatPenerima2',
+    'selama','dariTanggal','sampaiTanggal',
+    'kotaTtd','tanggalTtd','namaPemilik','catatan'
+  ];
+
+  function saveNA() {
+    try {
+      const formData = {};
+      FORM_FIELD_IDS_NA.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) formData[id] = el.value;
+      });
+      const payload = { formData, rows, signatureData, savedAt: new Date().toISOString() };
+      localStorage.setItem(SAVE_KEY_NA, JSON.stringify(payload));
+    } catch(e) { /* quota exceeded, ignore */ }
+  }
+
+  function loadNA() {
+    try {
+      const raw = localStorage.getItem(SAVE_KEY_NA);
+      if (!raw) return false;
+      const payload = JSON.parse(raw);
+
+      // Restore form fields
+      if (payload.formData) {
+        FORM_FIELD_IDS_NA.forEach(id => {
+          const el = document.getElementById(id);
+          if (el && payload.formData[id] !== undefined) el.value = payload.formData[id];
+        });
+      }
+
+      // Restore rows
+      if (payload.rows && Array.isArray(payload.rows) && payload.rows.length > 0) {
+        rows = [];
+        rowIdCounter = 0;
+        payload.rows.forEach(r => {
+          rows.push(Object.assign({ id: ++rowIdCounter, jenis: '', jumlah: '', satuanJumlah: 'BTG', volume: '', keterangan: '' }, r, { id: rowIdCounter }));
+        });
+        renderRowEditor();
+      }
+
+      // Restore signature
+      if (payload.signatureData) {
+        signatureData = payload.signatureData;
+        const sigCanvas = document.getElementById('signatureCanvas');
+        if (sigCanvas) {
+          const sigCtx = sigCanvas.getContext('2d');
+          const img = new Image();
+          img.onload = () => sigCtx.drawImage(img, 0, 0, sigCanvas.width, sigCanvas.height);
+          img.src = signatureData;
+        }
+      }
+
+      return true;
+    } catch(e) { return false; }
+  }
+
   // ---------- INIT ----------
-  addRow();
+  const naRestored = loadNA();
+  if (!naRestored) {
+    addRow();
+  }
   renderPreview();
+
+  // Auto-save on form input
+  form.addEventListener('input', saveNA);
+
+  // Auto-save on row content changes (already fires via renderPreview -> form.input, but explicit)
+  const _origAddRow = addRow;
+  // Save after signature drawn
+  window.addEventListener('mouseup', () => { if (signatureData) saveNA(); });
+  window.addEventListener('touchend', () => { if (signatureData) saveNA(); });
+
+  // Clear on reset
+  const origFormReset = form.addEventListener.bind(form);
+  form.addEventListener('reset', (e) => {
+    e.preventDefault();
+    if (!confirm('Apakah Anda yakin ingin mengosongkan semua data form?')) return;
+    localStorage.removeItem(SAVE_KEY_NA);
+    rows = [];
+    rowIdCounter = 0;
+    signatureData = null;
+    const sigCnv = document.getElementById('signatureCanvas');
+    if (sigCnv) {
+      const ctx2 = sigCnv.getContext('2d');
+      if (ctx2) ctx2.clearRect(0, 0, sigCnv.width, sigCnv.height);
+    }
+    addRow();
+    renderPreview();
+    formError.textContent = '';
+  });
 
 })();

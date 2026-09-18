@@ -263,7 +263,7 @@ function renderSubrow(group, row, rIndex) {
   });
 
   wrap.appendChild(field('Jumlah', jumlahInput));
-  wrap.appendChild(field('Panjang (m)', panjangInput));
+  wrap.appendChild(field('Panjang (cm)', panjangInput));
   wrap.appendChild(field('Diameter (cm)', diameterInput));
   wrap.appendChild(field('Volume (m³)', volumeInput));
 
@@ -318,17 +318,87 @@ function updateTotalsPreview() {
 }
 
 /* =============================================================== */
+/* AUTO-SAVE (localStorage)                                         */
+/* =============================================================== */
+const SAVE_KEY_DK = 'dkbdko_autosave';
+const FORM_FIELD_IDS_DK = ['nomor','kabkota','provinsi','satuanSub','satuanGrand','tglMulai','tglAkhir','jenisAngkut','noPolisi','kotaTtd','tanggalTtd','namaPemilik'];
+
+function saveData() {
+  try {
+    const formData = {};
+    FORM_FIELD_IDS_DK.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) formData[id] = el.value;
+    });
+    const signatureDataUrl = hasSignature ? canvas.toDataURL('image/png') : null;
+    const payload = { formData, groups, signatureDataUrl, savedAt: new Date().toISOString() };
+    localStorage.setItem(SAVE_KEY_DK, JSON.stringify(payload));
+  } catch(e) { /* quota exceeded, ignore */ }
+}
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY_DK);
+    if (!raw) return false;
+    const payload = JSON.parse(raw);
+
+    // Restore form fields
+    if (payload.formData) {
+      FORM_FIELD_IDS_DK.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && payload.formData[id] !== undefined) el.value = payload.formData[id];
+      });
+    }
+
+    // Restore groups data
+    if (payload.groups && Array.isArray(payload.groups)) {
+      groupIdCounter = 0;
+      rowIdCounter = 0;
+      groups = payload.groups.map(g => {
+        groupIdCounter++;
+        return {
+          id: 'g' + groupIdCounter,
+          nama: g.nama || '',
+          rows: (g.rows || []).map(r => {
+            rowIdCounter++;
+            return { id: 'r' + rowIdCounter, jumlah: r.jumlah || '', panjang: r.panjang || '', diameter: r.diameter || '', volume: r.volume || '' };
+          })
+        };
+      });
+      if (groups.length === 0) {
+        groups = [makeGroup('', [makeRow('', '', '', '')])];
+      }
+    }
+
+    // Restore signature
+    if (payload.signatureDataUrl) {
+      const img = new Image();
+      img.onload = () => {
+        resizeCanvas();
+        ctx.drawImage(img, 0, 0, canvas.getBoundingClientRect().width, canvas.getBoundingClientRect().height);
+        hasSignature = true;
+      };
+      img.src = payload.signatureDataUrl;
+    }
+
+    return true;
+  } catch(e) { return false; }
+}
+
+/* =============================================================== */
 /* TAMBAH JENIS KAYU BARU                                           */
 /* =============================================================== */
 document.getElementById('addGroupBtn').addEventListener('click', () => {
   groups.push(makeGroup('', [makeRow('', '', '', '')]));
   renderGroups();
   updateTotalsPreview();
+  saveData();
 });
 
 // Ketika satuan grand total diubah, refresh semua subtotal yang tampil
 document.getElementById('satuanGrand').addEventListener('input', () => {
   groups.forEach(group => refreshSubtotal(group));
+  saveData();
 });
 
 /* =============================================================== */
@@ -763,7 +833,26 @@ async function generatePDF(isMentah, mentahJenis = 5, mentahUkuran = 3) {
   try {
     buildPrintArea(isMentah, mentahJenis, mentahUkuran);
 
+    // Reset margin before measuring
+    const bottomSection = document.getElementById('docBottomSection');
+    if (bottomSection) {
+      bottomSection.style.marginTop = '0px';
+    }
+
     await new Promise(resolve => setTimeout(resolve, 50));
+
+    // Cek posisi bottom section, pindah ke halaman berikutnya jika terpotong
+    if (bottomSection) {
+      const PAGE_HEIGHT = 1123;
+      const MARGIN = 76; // sekitar 2cm dalam pixel
+      const offsetInPage = bottomSection.offsetTop % PAGE_HEIGHT;
+      
+      // Jika sisa ruang di halaman ini tidak cukup untuk bottomSection
+      if (offsetInPage + bottomSection.offsetHeight > PAGE_HEIGHT - MARGIN) {
+         const pushAmount = (PAGE_HEIGHT - offsetInPage) + MARGIN;
+         bottomSection.style.marginTop = pushAmount + 'px';
+      }
+    }
 
     const printArea = document.getElementById('printArea');
     const canvasResult = await html2canvas(printArea, {
@@ -812,5 +901,419 @@ async function generatePDF(isMentah, mentahJenis = 5, mentahUkuran = 3) {
 /* =============================================================== */
 /* INIT                                                              */
 /* =============================================================== */
+const restored = loadData();
+if (!restored) {
+  groups = [makeGroup('', [makeRow('', '', '', '')])];
+}
 renderGroups();
 updateTotalsPreview();
+
+// Auto-save on any form input change
+document.getElementById('dkbForm').addEventListener('input', () => {
+  updateTotalsPreview();
+  saveData();
+});
+
+// Save when signature is drawn (endDraw)
+const _origEndDraw = endDraw;
+window.addEventListener('mouseup', () => { if (hasSignature) saveData(); });
+window.addEventListener('touchend', () => { if (hasSignature) saveData(); });
+
+// Clear localStorage on reset
+document.getElementById('resetBtn').addEventListener('click', () => {
+  if (!confirm('Apakah Anda yakin ingin mengosongkan semua data?')) return;
+  localStorage.removeItem(SAVE_KEY_DK);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  hasSignature = false;
+  groupIdCounter = 0;
+  rowIdCounter = 0;
+  groups = [makeGroup('', [makeRow('', '', '', '')])];
+  FORM_FIELD_IDS_DK.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  // restore select defaults
+  const satuanSub = document.getElementById('satuanSub');
+  if (satuanSub) satuanSub.value = 'Pcs';
+  const satuanGrand = document.getElementById('satuanGrand');
+  if (satuanGrand) satuanGrand.value = 'Btg';
+  renderGroups();
+  updateTotalsPreview();
+});
+
+/* =============================================================== */
+/* PDF SCAN FEATURE                                                  */
+/* =============================================================== */
+
+// Set PDF.js worker
+if (typeof pdfjsLib !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+// --- Modal elements ---
+const ocrOverlay       = document.getElementById('ocrOverlay');
+const ocrLoadingModal  = document.getElementById('ocrLoadingModal');
+const ocrProgressBar   = document.getElementById('ocrProgressBar');
+const ocrLoadingDesc   = document.getElementById('ocrLoadingDesc');
+const ocrReviewModal   = document.getElementById('ocrReviewModal');
+const ocrGroupsPreview = document.getElementById('ocrGroupsPreview');
+
+// OCR modal data state
+let ocrData = { groups: [] };
+
+function showOcrLoading(desc, pct) {
+  ocrOverlay.classList.add('val-overlay--show');
+  ocrLoadingModal.classList.add('val-toast--show');
+  if (desc) ocrLoadingDesc.textContent = desc;
+  if (pct !== undefined) ocrProgressBar.style.width = pct + '%';
+}
+
+function hideOcrLoading() {
+  ocrLoadingModal.classList.remove('val-toast--show');
+  ocrOverlay.classList.remove('val-overlay--show');
+}
+
+function showOcrReview() {
+  // Sembunyikan loading & overlay dulu, lalu tampilkan review (punya backdrop sendiri)
+  hideOcrLoading();
+  ocrReviewModal.classList.add('ocr-review-modal--show');
+}
+
+function hideOcrReview() {
+  ocrReviewModal.classList.remove('ocr-review-modal--show');
+}
+
+/* ---- Extract text from PDF via PDF.js & Tesseract (Hybrid) ---- */
+async function extractTextFromPDF(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let fullText = '';
+  
+  for (let i = 1; i <= pdf.numPages; i++) {
+    showOcrLoading(`Membaca halaman ${i} dari ${pdf.numPages}...`, Math.round((i / pdf.numPages) * 30));
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    
+    let pageText = '';
+    // Coba ambil teks asli (untuk PDF cetak)
+    const items = content.items.slice().sort((a, b) => {
+      const yDiff = Math.round(b.transform[5]) - Math.round(a.transform[5]);
+      return yDiff !== 0 ? yDiff : a.transform[4] - b.transform[4];
+    });
+    
+    let lastY = null;
+    for (const item of items) {
+      const y = Math.round(item.transform[5]);
+      if (lastY !== null && Math.abs(y - lastY) > 4) pageText += '\n';
+      pageText += item.str + ' ';
+      lastY = y;
+    }
+    
+    // Kalau teks dari PDF kurang dari 50 karakter (kemungkinan ini image-based PDF/hasil download web ini)
+    if (pageText.trim().length < 50) {
+      showOcrLoading(`Memproses OCR Gambar halaman ${i}...`, 40);
+      
+      // Render PDF ke Canvas
+      const viewport = page.getViewport({ scale: 2.0 }); // Scale tinggi untuk OCR lebih baik
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      
+      await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+      
+      showOcrLoading(`Menjalankan AI Scanner halaman ${i}...`, 60);
+      
+      // Jalankan Tesseract.js
+      if (typeof Tesseract === 'undefined') {
+        throw new Error('Tesseract.js belum dimuat.');
+      }
+      
+      const worker = await Tesseract.createWorker('ind'); // bahasa indo
+      const result = await worker.recognize(canvas);
+      pageText = result.data.text;
+      await worker.terminate();
+    }
+    
+    fullText += pageText + '\n\n';
+  }
+  return fullText.trim();
+}
+/* ---- Parse teks PDF jadi objek terstruktur ---- */
+/* ---- Parse teks PDF jadi objek terstruktur ---- */
+function parsePDFText(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const result = {
+    nomor: '', kabkota: '', provinsi: '',
+    jenisAngkut: '', noPolisi: '', namaPemilik: '',
+    groups: []
+  };
+
+  const fullText = lines.join('\n');
+  
+  // Nomor
+  const nomorMatch = fullText.match(/Nomor\s*[:;]?\s*([^\n]+)/i);
+  if (nomorMatch) result.nomor = nomorMatch[1].trim();
+
+  // Kabupaten/Kota
+  const kabMatch = fullText.match(/Kabupaten\s*[\/\\]?\s*Kota\s*[:;]?\s*([^\n]+)/i);
+  if (kabMatch) result.kabkota = kabMatch[1].trim();
+
+  // Provinsi
+  const provMatch = fullText.match(/Provinsi\s*[:;]?\s*([^\n]+)/i);
+  if (provMatch) result.provinsi = provMatch[1].trim();
+
+  // Jenis Alat Angkut (Hati-hati jika NO POL ada di baris yang sama)
+  const alatMatch = fullText.match(/Jenis\s+Alat\s*Angkut\s*[:;]?\s*([^\n]+)/i);
+  if (alatMatch) result.jenisAngkut = alatMatch[1].replace(/NO\.?P[O0]L.*$/i, '').trim();
+
+  // NO POL
+  const nopolMatch = fullText.match(/NO\.?P[O0]L\s*[:;]?\s*([^\n]+)/i);
+  if (nopolMatch) result.noPolisi = nopolMatch[1].trim();
+
+  // Nama Pemilik
+  const namaMatch = fullText.match(/PEMILIK\s*HUTAN\s*HAK\s+([^\n]+)/i);
+  if (namaMatch) result.namaPemilik = namaMatch[1].trim();
+
+  // --- Parse tabel kayu (Sangat Toleran OCR) ---
+  const groupMap = new Map();
+  let currentGroupName = 'Kayu'; // Default name if no name is found
+
+  // Pola Row: [Optional No] [Optional Nama Kayu] [Jumlah] [Panjang] [Diameter] [Optional Volume]
+  // Contoh: "1 Jati 45 200 3 x 12 0 M3" atau "3 200 3 x 14"
+  const rowPattern = /^(?:(\d+)\s+([A-Za-z][A-Za-z\s]*?)\s+)?(\d+)\s+(\d+)\s+([\d.,]+(?:\s*[xX×*]\s*[\d.,]+)?)(?:\s+(.*?))?$/i;
+
+  for (let i = 0; i < lines.length; i++) {
+    // Bersihkan karakter aneh yang sering muncul dari garis tabel di OCR
+    const line = lines[i].replace(/[|]/g, '').trim(); 
+
+    const m = line.match(rowPattern);
+    if (m) {
+       const nama = (m[2] || '').trim();
+       if (nama && nama.length > 2 && nama.toLowerCase() !== 'jumlah') {
+         currentGroupName = nama;
+       }
+       
+       if (!groupMap.has(currentGroupName)) groupMap.set(currentGroupName, []);
+       
+       let vol = (m[6] || '').trim();
+       // Bersihkan "0 M3" atau "0 M'" yang sering salah terbaca
+       if (vol.replace(/\s+/g, '').match(/^0m/i)) vol = '0'; 
+
+       groupMap.get(currentGroupName).push({
+         jumlah: m[3],
+         panjang: m[4],
+         diameter: m[5].replace(/\s/g, ''), // hilangkan spasi di diameter (contoh "3x12")
+         volume: vol
+       });
+    }
+  }
+
+  if (groupMap.size > 0) {
+    groupMap.forEach((rows, nama) => {
+      result.groups.push({ nama, rows });
+    });
+  }
+
+  if (result.groups.length === 0) {
+    result.groups.push({ nama: '', rows: [{ jumlah: '', panjang: '', diameter: '', volume: '' }] });
+  }
+
+  return result;
+}
+
+/* ---- Render grup di modal review ---- */
+function renderOcrGroupsPreview() {
+  ocrGroupsPreview.innerHTML = '';
+  document.getElementById('ocrGroupCount').textContent =
+    ocrData.groups.length > 0 ? `(${ocrData.groups.length} jenis)` : '';
+
+  ocrData.groups.forEach((group, gi) => {
+    const card = document.createElement('div');
+    card.className = 'ocr-group-card';
+
+    // Header: label + input nama + remove btn
+    const header = document.createElement('div');
+    header.className = 'ocr-group-header';
+
+    const label = document.createElement('span');
+    label.className = 'ocr-group-label';
+    label.textContent = `#${gi + 1}`;
+
+    const namaInp = document.createElement('input');
+    namaInp.className = 'ocr-group-nama';
+    namaInp.type = 'text';
+    namaInp.placeholder = 'Nama jenis kayu...';
+    namaInp.value = group.nama;
+    namaInp.addEventListener('input', e => { group.nama = e.target.value; });
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'ocr-group-remove';
+    removeBtn.type = 'button';
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => {
+      ocrData.groups.splice(gi, 1);
+      renderOcrGroupsPreview();
+    });
+
+    header.appendChild(label);
+    header.appendChild(namaInp);
+    header.appendChild(removeBtn);
+    card.appendChild(header);
+
+    // Tabel rows
+    const table = document.createElement('table');
+    table.className = 'ocr-rows-table';
+    table.innerHTML = `<thead><tr>
+      <th>Jumlah</th><th>Panjang (cm)</th><th>Diameter (cm)</th><th>Volume (m³)</th><th></th>
+    </tr></thead>`;
+    const tbody = document.createElement('tbody');
+
+    function addOcrRow(row) {
+      const tr = document.createElement('tr');
+      ['jumlah','panjang','diameter','volume'].forEach(key => {
+        const td = document.createElement('td');
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.value = row[key] || '';
+        inp.placeholder = key === 'diameter' ? '0' : '0';
+        inp.addEventListener('input', e => { row[key] = e.target.value; });
+        td.appendChild(inp);
+        tr.appendChild(td);
+      });
+      const tdDel = document.createElement('td');
+      tdDel.className = 'td-del';
+      const delBtn = document.createElement('button');
+      delBtn.className = 'ocr-row-del-btn';
+      delBtn.type = 'button';
+      delBtn.textContent = '✕';
+      delBtn.addEventListener('click', () => {
+        const idx = group.rows.indexOf(row);
+        if (idx > -1) group.rows.splice(idx, 1);
+        if (group.rows.length === 0) group.rows.push({ jumlah:'', panjang:'', diameter:'', volume:'' });
+        renderOcrGroupsPreview();
+      });
+      tdDel.appendChild(delBtn);
+      tr.appendChild(tdDel);
+      tbody.appendChild(tr);
+    }
+
+    group.rows.forEach(addOcrRow);
+    table.appendChild(tbody);
+    card.appendChild(table);
+
+    // Tambah baris
+    const addRowBtn = document.createElement('button');
+    addRowBtn.type = 'button';
+    addRowBtn.className = 'btn btn--ghost ocr-add-row-btn';
+    addRowBtn.textContent = '+ Tambah Ukuran';
+    addRowBtn.addEventListener('click', () => {
+      group.rows.push({ jumlah:'', panjang:'', diameter:'', volume:'' });
+      renderOcrGroupsPreview();
+    });
+    card.appendChild(addRowBtn);
+
+    ocrGroupsPreview.appendChild(card);
+  });
+}
+
+/* ---- Terapkan data OCR ke form utama ---- */
+function applyOcrToForm() {
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (el && val) el.value = val;
+  };
+  set('nomor',      document.getElementById('ocr_nomor').value);
+  set('kabkota',    document.getElementById('ocr_kabkota').value);
+  set('provinsi',   document.getElementById('ocr_provinsi').value);
+  set('jenisAngkut',document.getElementById('ocr_jenisAngkut').value);
+  set('noPolisi',   document.getElementById('ocr_noPolisi').value);
+  set('namaPemilik',document.getElementById('ocr_namaPemilik').value);
+
+  // Reset dan isi groups
+  groupIdCounter = 0;
+  rowIdCounter = 0;
+  groups = ocrData.groups.map(g => {
+    groupIdCounter++;
+    return {
+      id: 'g' + groupIdCounter,
+      nama: g.nama,
+      rows: g.rows.map(r => {
+        rowIdCounter++;
+        return { id: 'r' + rowIdCounter, jumlah: r.jumlah || '', panjang: r.panjang || '', diameter: r.diameter || '', volume: r.volume || '' };
+      })
+    };
+  });
+
+  if (groups.length === 0) groups = [makeGroup('', [makeRow('', '', '', '')])];
+
+  renderGroups();
+  updateTotalsPreview();
+  saveData();
+  hideOcrReview();
+
+  // Scroll ke atas form
+  document.querySelector('.form-panel').scrollTop = 0;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ---- Wire up events ---- */
+document.getElementById('scanPdfInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = ''; // reset so same file can be re-selected
+
+  if (typeof pdfjsLib === 'undefined') {
+    alert('Library PDF.js belum dimuat. Periksa koneksi internet dan coba lagi.');
+    return;
+  }
+
+  showOcrLoading('Membuka file PDF...', 10);
+
+  try {
+    const rawText = await extractTextFromPDF(file);
+    showOcrLoading('Menganalisis teks...', 90);
+
+    await new Promise(r => setTimeout(r, 200));
+
+    const parsed = parsePDFText(rawText);
+    ocrData = parsed;
+
+    hideOcrLoading();
+
+    // Isi field modal
+    document.getElementById('ocr_nomor').value       = parsed.nomor;
+    document.getElementById('ocr_kabkota').value     = parsed.kabkota;
+    document.getElementById('ocr_provinsi').value    = parsed.provinsi;
+    document.getElementById('ocr_jenisAngkut').value = parsed.jenisAngkut;
+    document.getElementById('ocr_noPolisi').value    = parsed.noPolisi;
+    document.getElementById('ocr_namaPemilik').value = parsed.namaPemilik;
+
+    renderOcrGroupsPreview();
+    showOcrReview();
+
+  } catch (err) {
+    hideOcrLoading();
+    ocrOverlay.classList.remove('val-overlay--show');
+    console.error(err);
+    alert('Gagal membaca PDF: ' + err.message + '\n\nPastikan file adalah PDF yang valid.');
+  }
+});
+
+document.getElementById('ocrAddGroupBtn').addEventListener('click', () => {
+  ocrData.groups.push({ nama: '', rows: [{ jumlah:'', panjang:'', diameter:'', volume:'' }] });
+  renderOcrGroupsPreview();
+});
+
+document.getElementById('ocrApplyBtn').addEventListener('click', applyOcrToForm);
+document.getElementById('ocrCancelBtn').addEventListener('click', hideOcrReview);
+document.getElementById('ocrReviewCloseBtn').addEventListener('click', hideOcrReview);
+// ocrOverlay is only for loading state — clicking it cancels the loading
+ocrOverlay.addEventListener('click', hideOcrLoading);
+// Clicking review modal backdrop (outside inner box) also closes it
+ocrReviewModal.addEventListener('click', (e) => {
+  if (e.target === ocrReviewModal) hideOcrReview();
+});
+
+
